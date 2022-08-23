@@ -1,3 +1,5 @@
+import pandas as pd
+pd.options.mode.chained_assignment = None 
 def setup_fs(s3, key="", secret="", endpoint="", cert="", passwords={}):
     """Given a boolean specifying whether to use local disk or S3, setup filesystem
     Syntax examples: AWS (http://s3.us-east-2.amazonaws.com), MinIO (http://192.168.0.1:9000)
@@ -95,7 +97,7 @@ def restructure_data(df_phys, res, full_col_names=False, pgn_names=False):
 
                 df_phys_join = pd.merge_ordered(
                     df_phys_join,
-                    data["Physical Value"].rename(col_name).resample(res).pad().dropna(),
+                    data["Physical Value"].rename(col_name).resample(res).asfreq().ffill().dropna(),
                     on="TimeStamp",
                     fill_method="none",
                 ).set_index("TimeStamp")
@@ -175,9 +177,10 @@ class ProcessData:
             df_phys_temp = pd.DataFrame()
             for length, group in df_raw.groupby("DataLength"):
                 df_phys_group = df_decoder.decode_frame(group)
-                df_phys_temp = df_phys_temp.append(df_phys_group)
+                
+                df_phys_temp = pd.concat([df_phys_group], axis=1)
 
-            df_phys = df_phys.append(df_phys_temp.sort_index())
+            df_phys = pd.concat([df_phys_temp.sort_index()])
 
         # remove duplicates in case multiple DBC files contain identical signals
         df_phys["datetime"] = df_phys.index
@@ -383,6 +386,7 @@ class MultiFrameDecoder:
         return sa
 
     def construct_new_tp_frame(self, base_frame, payload_concatenated, can_id):
+       
         new_frame = base_frame
         new_frame.at["DataBytes"] = payload_concatenated
         new_frame.at["DLC"] = 0
